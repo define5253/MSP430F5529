@@ -102,7 +102,16 @@ void main(void)
 
     while (1)
     {
-        P2OUT |= (BIT7);
+        if (TA0R > 5000) //권장주기 : 50ms 넘으면 시간 초기화
+        {
+            TA0R = 0;
+        }
+        if (TA0R == 0) //시작 시간이면
+        {
+            TA0CTL = TASSEL_2 + MC_1 + ID_0 + TACLR;
+            P2OUT |= (BIT7); //TRIG ON
+            TA0CCR0 = 10; //10us TRIG TIME
+        }
         Display();
     }
 }
@@ -112,22 +121,28 @@ void Port_1(void)
 {
     if ((P1IES & BIT4) == 0) //rising edge
     {
-        TA0CTL = TASSEL_2 + MC_2 + ID_0 + TACLR;
+        TA0CTL = TASSEL_2 + MC_2 + ID_0 + TACLR; //RISING EDGE부터 시간측정 시작
         P1IES |= BIT4; //falling Edge
     }
     else //falling edge
     {
-        duration = TA0R;
+        duration = TA0R; //FALLING EDGE까지의 시간
+        P1IES &= ~BIT4;
     }
-    P1IFG &= (~BIT4); //interrupt clr
+    P1IFG &= (~BIT4); //interrupt CLR
 }
 
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR(void)
 {
+    if ((P2OUT & BIT7) == 1) //TRIG ON이면
+    {
+        P2OUT &= ~(BIT7); //10us 이후 TRIG OFF
+    }
 }
 #pragma vector = TIMER1_A0_VECTOR
 __interrupt void TIMER1_A0_ISR(void) //display update
 {
-    display=duration;
+    display = duration / 58;
+    Display();
 }
