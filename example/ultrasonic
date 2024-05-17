@@ -33,6 +33,7 @@ unsigned int duration = 0;
 unsigned int displaytime = 0;
 unsigned int display = 0;
 unsigned int time = 0;
+unsigned int lasttime = 0;
 volatile unsigned int digitnum = 0;
 
 void Display()
@@ -78,16 +79,18 @@ void main(void)
     P2DIR |= BIT7;
     P2OUT &= ~(BIT7);
     // P1.4 : ECHO
-    P1SEL |= BIT4;
     P1DIR &= (~BIT4);
     P1IE |= BIT4;
     P1IES &= (~BIT4); //RISING EDGE
     P1IFG &= (~BIT4);
 
     //TIMER INTERRUPT
-    TA0CTL = TASSEL_2 + MC_1 + ID_0 + TACLR; // SMCLK : 1MHZ ->1us
-    TA0CCR0 = 10; //10us
+    TA0CTL = TASSEL_2 + MC_2 + ID_0 + TACLR; // SMCLK : 1MHZ ->1us
     TA0CCTL0 = CCIE;
+
+    TA1CTL = TASSEL_2 + MC_1 + ID_3 + TACLR; // SMCLK : 1MHZ/8 ->8us
+    TA1CCR0 = 62500;
+    TA1CCTL0 = CCIE;
 
     //7SEGMENT
     P3DIR |= 0xFF; // P3.0-P3.7 output 설정
@@ -99,6 +102,7 @@ void main(void)
 
     while (1)
     {
+        P2OUT |= (BIT7);
         Display();
     }
 }
@@ -108,42 +112,22 @@ void Port_1(void)
 {
     if ((P1IES & BIT4) == 0) //rising edge
     {
-        duration = time;
+        TA0CTL = TASSEL_2 + MC_2 + ID_0 + TACLR;
         P1IES |= BIT4; //falling Edge
     }
     else //falling edge
     {
-        duration = (time - duration) / 58;
-        P1IES &= ~BIT4; //rising Edge
+        duration = TA0R;
     }
     P1IFG &= (~BIT4); //interrupt clr
-    duration = 2024;
 }
 
 #pragma vector = TIMER0_A0_VECTOR
 __interrupt void TIMER0_A0_ISR(void)
 {
-    Display();
-    if (time == 0)
-    {
-        P2OUT |= BIT7;
-        time++;
-    }
-    else if (time == 1) //10us면 TRIG OFF
-    {
-        P2OUT &= ~BIT7;
-        time++;
-    }
-    else if (time > 5000) //10us *5000 =50ms
-    {
-        time = 0;
-    }
-    displaytime++;
-    if (displaytime > 500)
-    {
-        displaytime = 0;
-        display++;
-    }
 }
-
-
+#pragma vector = TIMER1_A0_VECTOR
+__interrupt void TIMER1_A0_ISR(void) //display update
+{
+    display=duration;
+}
